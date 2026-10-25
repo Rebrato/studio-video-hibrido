@@ -1,0 +1,7 @@
+node_modules/
+.env
+out/*.mp4
+public/assets/*.mp4
+public/assets/*.png
+public/assets/*.jpg
+.DS_Store

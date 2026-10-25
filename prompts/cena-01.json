@@ -1,0 +1,23 @@
+{
+  "id": "cena-01",
+  "durationInSeconds": 5,
+  "aspectRatio": "16:9",
+  "aiGeneration": {
+    "imageModel": "fal-ai/flux/schnell",
+    "imageModelAlternatives": ["fal-ai/flux/schnell", "fal-ai/flux-pro/v1.1"],
+    "videoModel": "fal-ai/kling-video/v1.6/standard/image-to-video",
+    "cinematicSpec": {
+      "subject": "A lone architect standing in a vast minimalist concrete atrium, soft dust particles floating in sunbeams",
+      "cameraMovement": "slow dolly-in, subtle parallax, steady gimbal",
+      "lens": "35mm anamorphic, shallow depth of field, f/2.0",
+      "lighting": "volumetric golden-hour light through a skylight, soft bounce fill, deep shadows",
+      "colorGrade": "teal and amber, low saturation, filmic contrast, light grain",
+      "negativePrompt": "blurry, distorted faces, extra limbs, text, watermark, logo, low resolution, flicker"
+    }
+  },
+  "remotionOverlay": {
+    "headline": "Estúdio Híbrido de Vídeo",
+    "subheadline": "IA generativa + Remotion + código, em um único pipeline",
+    "themeColor": "#38bdf8"
+  }
+}
