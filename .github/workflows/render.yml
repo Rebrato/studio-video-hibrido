@@ -1,0 +1,66 @@
+name: Render video
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Fonte do vídeo de fundo"
+        type: choice
+        options: [auto, mock, ai]
+        default: auto
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install system libraries for headless Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libnss3 libdbus-1-3 libatk1.0-0 libgbm-dev libasound2t64 \
+            libxrandr2 libxkbcommon-dev libxfixes3 libxcomposite1 libxdamage1 \
+            libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate background video
+        env:
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          SOURCE: ${{ inputs.source }}
+        run: |
+          if [ "$SOURCE" = "mock" ]; then
+            echo "Modo mock escolhido manualmente."
+            npm run generate:mock
+          elif [ -n "$FAL_KEY" ]; then
+            echo "FAL_KEY encontrada: gerando via Fal.ai."
+            npm run generate:ai
+          elif [ "$SOURCE" = "ai" ]; then
+            echo "::error::Modo ai escolhido, mas o secret FAL_KEY não está configurado."
+            exit 1
+          else
+            echo "Sem FAL_KEY: usando mock gratuito."
+            npm run generate:mock
+          fi
+
+      - name: Render final video
+        run: npm run render
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video-final
+          path: |
+            out/video-final.mp4
+            public/assets/*-keyframe.jpg
+          if-no-files-found: error
+          retention-days: 14

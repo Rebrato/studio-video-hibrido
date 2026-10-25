@@ -1,7 +1,22 @@
-node_modules/
+# Segredos
 .env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Dependências
+node_modules/
+
+# Mídia gerada
 out/*.mp4
 public/assets/*.mp4
 public/assets/*.png
 public/assets/*.jpg
+
+# Roteiros confidenciais (nunca sobem para o GitHub público)
+prompts/privados/*
+!prompts/privados/.gitkeep
+
+# Sistema
 .DS_Store

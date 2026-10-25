@@ -33,3 +33,20 @@ Pipeline: **JSON de cena (prompts/) → Fal.ai gera keyframe + vídeo → Remoti
 - **Remotion fixado em `4.0.438`** (versão exata, sem `^`). Da 4.0.439 em diante o FFmpeg interno do Remotion exige macOS 14+ e o render quebra com `dyld: Symbol not found: _AVCaptureDeviceTypeContinuityCamera`. Não atualizar enquanto o Mac estiver no macOS 13. Todos os pacotes `@remotion/*` devem ter a MESMA versão.
 - **TypeScript na linha 5.x**: o TypeScript 7 não tem a API JS que o bundler do Remotion 4.0.438 usa.
 - `ffmpeg-static` precisa de permissão de install script (`npm install-scripts approve ffmpeg-static`) para baixar o binário.
+
+## Regras Críticas de Segurança (Repositório Público)
+Este repositório é **PÚBLICO**. Tudo que for commitado fica visível para qualquer pessoa, para sempre.
+
+- **NUNCA** escrever chaves de API, tokens ou senhas em arquivos `.ts`, `.tsx`, `.json`, `.md` ou `.yml`. Sempre ler de `process.env.NOME_DA_VARIAVEL` (carregado do `.env` via `dotenv`).
+- **NUNCA** commitar `.env` nem `.env.*`. Só `.env.example` (com valores vazios) vai para o Git. Ao criar uma variável nova, adicione o nome dela vazio em `.env.example`.
+- **NUNCA** usar `git add -f`, `git commit --no-verify` ou desativar o hook `pre-commit` para contornar um bloqueio. Se o hook bloquear, remova o segredo.
+- **NUNCA** repetir uma chave real em respostas, logs ou comandos (`echo`, `cat .env` etc.).
+- Roteiros públicos/gerais → `prompts/`. Roteiros confidenciais (clientes, campanhas não lançadas) → `prompts/privados/` (ignorada pelo Git).
+- No GitHub Actions, segredos vêm só de `secrets.*` (Settings → Secrets and variables → Actions).
+- Se uma chave vazar (chat, commit, log): revogar no painel do provedor e gerar outra. Apagar o commit não basta.
+
+### Trava local (`.git/hooks/pre-commit`)
+Bloqueia commits com: arquivos `.env*` (exceto `.env.example`), arquivos em `prompts/privados/`, padrões de chave (FAL, ElevenLabs, OpenAI `sk-`, GitHub `ghp_`/`github_pat_`, AWS, Google, chaves privadas PEM) e arquivos > 50MB. O hook não é versionado (fica só em `.git/hooks`): ao clonar o repositório em outra máquina, recriar o hook.
+
+## Render na nuvem (GitHub Actions)
+Workflow `.github/workflows/render.yml`, disparado manualmente (aba Actions → "Render video" → Run workflow). Com o secret `FAL_KEY` configurado, ele gera o vídeo via IA (gasta créditos). Sem ele, usa o mock grátis. O MP4 final fica disponível para download como Artifact da execução.
