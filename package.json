@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "remotion studio",
-    "render": "remotion render MainVideo out/video-final.mp4",
+    "dev": "tsx scripts/sync-scenes.ts && remotion studio",
+    "render": "tsx scripts/render.ts",
     "generate:ai": "tsx scripts/generate-assets.ts",
-    "generate:mock": "tsx scripts/generate-mock.ts"
+    "generate:image": "tsx scripts/generate-assets.ts --so-imagem",
+    "generate:mock": "tsx scripts/generate-mock.ts",
+    "scenes": "tsx scripts/sync-scenes.ts"
   },
   "dependencies": {
     "@fal-ai/client": "^1.10.1",

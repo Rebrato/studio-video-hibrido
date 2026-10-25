@@ -1,30 +1,13 @@
 import "dotenv/config";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fal } from "@fal-ai/client";
+import { loadScene, sceneArg } from "./lib/scenes";
 
-type CinematicSpec = {
-  subject: string;
-  cameraMovement: string;
-  lens: string;
-  lighting: string;
-  colorGrade: string;
-  negativePrompt: string;
-};
-
-type Scene = {
-  id: string;
-  durationInSeconds: number;
-  aspectRatio: "16:9" | "9:16" | "1:1";
-  aiGeneration: {
-    imageModel: string;
-    videoModel: string;
-    cinematicSpec: CinematicSpec;
-  };
-};
-
-const sceneFile = process.argv[2] ?? "prompts/cena-01.json";
-const scene: Scene = JSON.parse(readFileSync(path.resolve(sceneFile), "utf8"));
+const { scene, file } = loadScene(sceneArg());
+const imageOnly = process.argv.includes("--so-imagem");
+const ai = scene.aiGeneration;
+const spec = ai.cinematicSpec;
 
 const key = process.env.FAL_KEY?.trim();
 if (!key || key === "COLE_SUA_CHAVE_AQUI") {
@@ -33,51 +16,86 @@ if (!key || key === "COLE_SUA_CHAVE_AQUI") {
 }
 fal.config({ credentials: key });
 
-const spec = scene.aiGeneration.cinematicSpec;
 const imagePrompt = [spec.subject, spec.lens, spec.lighting, spec.colorGrade, "cinematic film still, highly detailed"].join(", ");
 const videoPrompt = [spec.subject, spec.cameraMovement, spec.lighting].join(", ");
+const imageSize: Record<string, string> = { "16:9": "landscape_16_9", "9:16": "portrait_16_9", "1:1": "square_hd" };
+const REFERENCE_MODEL = "fal-ai/flux/dev/image-to-image";
 
-const imageSizeByRatio: Record<Scene["aspectRatio"], string> = {
-  "16:9": "landscape_16_9",
-  "9:16": "portrait_16_9",
-  "1:1": "square_hd",
+const assetsDir = path.resolve("public/assets");
+const outDir = path.resolve("out");
+mkdirSync(assetsDir, { recursive: true });
+mkdirSync(outDir, { recursive: true });
+
+const onQueueUpdate = (label: string) => (u: { status: string }) => {
+  if (u.status !== "COMPLETED") process.stdout.write(`   ${label}: ${u.status}        \r`);
 };
 
-const logQueue = (label: string) => (update: { status: string }) => {
-  if (update.status === "IN_QUEUE" || update.status === "IN_PROGRESS") {
-    process.stdout.write(`   ${label}: ${update.status}\r`);
-  }
-};
-
-async function download(url: string, dest: string) {
+async function download(url: string, destNoExt: string): Promise<string> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Falha ao baixar ${url}: ${res.status}`);
+  const type = res.headers.get("content-type") ?? "";
+  const ext = type.includes("png") ? ".png" : type.includes("webp") ? ".webp" : type.includes("mp4") ? ".mp4" : ".jpg";
+  const dest = destNoExt + ext;
   writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+  return dest;
+}
+
+/** Sobe uma imagem local (entradas/...) para a Fal.ai e devolve a URL. URLs passam direto. */
+async function resolveBaseImage(src: string): Promise<string> {
+  if (/^https?:\/\//.test(src)) return src;
+  const local = path.resolve(src);
+  if (!existsSync(local)) throw new Error(`Imagem base não encontrada: ${src}`);
+  const ext = path.extname(local).toLowerCase();
+  const type = ext === ".png" ? "image/png" : ext === ".webp" ? "image/webp" : "image/jpeg";
+  console.log(`📤 Enviando sua imagem ${src} para a Fal.ai...`);
+  return fal.storage.upload(new Blob([readFileSync(local)], { type }));
+}
+
+async function makeKeyframe(): Promise<string> {
+  // 1) Sua imagem, animada como está
+  if (ai.baseImage && (ai.baseImageMode ?? "animate") === "animate") {
+    return resolveBaseImage(ai.baseImage);
+  }
+
+  // 2) Sua imagem como referência para uma imagem nova
+  if (ai.baseImage && ai.baseImageMode === "reference") {
+    const ref = await resolveBaseImage(ai.baseImage);
+    console.log(`🖼️  Criando imagem nova a partir da sua referência (${REFERENCE_MODEL})...`);
+    const r = await fal.subscribe(REFERENCE_MODEL, {
+      input: { image_url: ref, prompt: imagePrompt, strength: ai.referenceStrength ?? 0.6 },
+      onQueueUpdate: onQueueUpdate("imagem"),
+    });
+    const url = (r.data as { images?: { url: string }[] }).images?.[0]?.url;
+    if (!url) throw new Error("O modelo de imagem não retornou nenhuma URL.");
+    return url;
+  }
+
+  // 3) Imagem criada do zero a partir do texto
+  console.log(`🖼️  Gerando imagem com ${ai.imageModel}...`);
+  const r = await fal.subscribe(ai.imageModel, {
+    input: { prompt: imagePrompt, image_size: imageSize[scene.aspectRatio] ?? "landscape_16_9", num_images: 1 },
+    onQueueUpdate: onQueueUpdate("imagem"),
+  });
+  const url = (r.data as { images?: { url: string }[] }).images?.[0]?.url;
+  if (!url) throw new Error("O modelo de imagem não retornou nenhuma URL.");
+  return url;
 }
 
 async function main() {
-  const assetsDir = path.resolve("public/assets");
-  mkdirSync(assetsDir, { recursive: true });
+  console.log(`🎬 Cena: ${scene.id} (${file})`);
+  const imageUrl = await makeKeyframe();
+  const saved = await download(imageUrl, path.join(assetsDir, `${scene.id}-keyframe`));
+  const imageCopy = path.join(outDir, `${scene.id}-imagem${path.extname(saved)}`);
+  copyFileSync(saved, imageCopy);
+  console.log(`\n   ✔ Imagem salva: ${path.relative(process.cwd(), imageCopy)}`);
 
-  // 1) Keyframe
-  console.log(`🖼️  Gerando keyframe com ${scene.aiGeneration.imageModel}...`);
-  const img = await fal.subscribe(scene.aiGeneration.imageModel, {
-    input: {
-      prompt: imagePrompt,
-      image_size: imageSizeByRatio[scene.aspectRatio],
-      num_images: 1,
-    },
-    logs: true,
-    onQueueUpdate: logQueue("imagem"),
-  });
-  const imageUrl: string | undefined = (img.data as { images?: { url: string }[] }).images?.[0]?.url;
-  if (!imageUrl) throw new Error("O modelo de imagem não retornou nenhuma URL.");
-  await download(imageUrl, path.join(assetsDir, `${scene.id}-keyframe.jpg`));
-  console.log(`\n   ✔ Keyframe salvo: public/assets/${scene.id}-keyframe.jpg`);
+  if (imageOnly) {
+    console.log("✅ Modo só imagem: nenhum vídeo foi gerado.");
+    return;
+  }
 
-  // 2) Image-to-Video
-  console.log(`🎥 Gerando vídeo com ${scene.aiGeneration.videoModel} (pode levar alguns minutos)...`);
-  const vid = await fal.subscribe(scene.aiGeneration.videoModel, {
+  console.log(`🎥 Gerando vídeo com ${ai.videoModel} (pode levar alguns minutos)...`);
+  const v = await fal.subscribe(ai.videoModel, {
     input: {
       prompt: videoPrompt,
       image_url: imageUrl,
@@ -85,18 +103,15 @@ async function main() {
       aspect_ratio: scene.aspectRatio,
       negative_prompt: spec.negativePrompt,
     },
-    logs: true,
-    onQueueUpdate: logQueue("vídeo"),
+    onQueueUpdate: onQueueUpdate("vídeo"),
   });
-  const videoUrl: string | undefined = (vid.data as { video?: { url: string } }).video?.url;
+  const videoUrl = (v.data as { video?: { url: string } }).video?.url;
   if (!videoUrl) throw new Error("O modelo de vídeo não retornou nenhuma URL.");
-
-  const outFile = path.join(assetsDir, `${scene.id}.mp4`);
-  await download(videoUrl, outFile);
-  console.log(`\n✅ Vídeo salvo: public/assets/${scene.id}.mp4 — rode "npm run render".`);
+  await download(videoUrl, path.join(assetsDir, scene.id));
+  console.log(`\n✅ Vídeo de fundo salvo: public/assets/${scene.id}.mp4. Agora rode: npm run render -- ${scene.id}`);
 }
 
 main().catch((err) => {
-  console.error("❌ Erro na geração:", err?.body ?? err);
+  console.error("\n❌ Erro na geração:", err?.body ?? err?.message ?? err);
   process.exit(1);
 });

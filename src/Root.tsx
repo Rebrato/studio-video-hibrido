@@ -1,15 +1,26 @@
 import { Composition } from "remotion";
 import { MainVideo } from "./MainVideo";
+import { scenes } from "./scenes.generated";
+import { sizeFor } from "./types";
 
-export const RemotionRoot: React.FC = () => {
-  return (
-    <Composition
-      id="MainVideo"
-      component={MainVideo}
-      durationInFrames={150}
-      fps={30}
-      width={1920}
-      height={1080}
-    />
-  );
-};
+const FPS = 30;
+
+export const RemotionRoot: React.FC = () => (
+  <>
+    {scenes.map((scene) => {
+      const [width, height] = sizeFor(scene.aspectRatio);
+      return (
+        <Composition
+          key={scene.id}
+          id={scene.id}
+          component={MainVideo}
+          durationInFrames={Math.round(scene.durationInSeconds * FPS)}
+          fps={FPS}
+          width={width}
+          height={height}
+          defaultProps={{ scene }}
+        />
+      );
+    })}
+  </>
+);

@@ -9,10 +9,19 @@
 node_modules/
 
 # Mídia gerada
-out/*.mp4
+out/*
+!out/.gitkeep
 public/assets/*.mp4
 public/assets/*.png
 public/assets/*.jpg
+public/assets/*.webp
+
+# Suas fotos/imagens de base (nunca sobem para o GitHub público)
+entradas/*
+!entradas/.gitkeep
+
+# Gerado automaticamente a partir de prompts/
+src/scenes.generated.ts
 
 # Roteiros confidenciais (nunca sobem para o GitHub público)
 prompts/privados/*

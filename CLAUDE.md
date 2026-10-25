@@ -9,20 +9,26 @@ Pipeline: **JSON de cena (prompts/) → Fal.ai gera keyframe + vídeo → Remoti
 - Campos obrigatórios: `id`, `durationInSeconds`, `aspectRatio`, `aiGeneration` (`imageModel`, `videoModel`, `cinematicSpec`) e `remotionOverlay` (`headline`, `subheadline`, `themeColor`).
 - `cinematicSpec` sempre preenche: `subject`, `cameraMovement`, `lens`, `lighting`, `colorGrade`, `negativePrompt` — em inglês, linguagem de set de filmagem.
 - Use `fal-ai/flux/schnell` para testes baratos e `fal-ai/flux-pro/v1.1` para a versão final.
+- Imagem própria do usuário: arquivo em `entradas/` (ignorada pelo Git) referenciado em `aiGeneration.baseImage`. `baseImageMode: "animate"` anima a imagem como está; `"reference"` cria uma imagem nova inspirada nela (`fal-ai/flux/dev/image-to-image`, intensidade em `referenceStrength`, 0.1 a 0.9).
 
 ### 2. Motion Designer — `src/`
 - Composições React + TypeScript, registradas em `src/Root.tsx`.
-- Vídeos de fundo vêm de `public/assets/` e são SEMPRE renderizados com `<OffthreadVideo src={staticFile("assets/<id>.mp4")} />` (nunca `<Video>` nem `<video>`).
+- Cada JSON em `prompts/` ou `prompts/privados/` vira automaticamente uma composição com o mesmo `id` (via `scripts/sync-scenes.ts` → `src/scenes.generated.ts`, arquivo gerado e ignorado pelo Git). O `id` só aceita letras sem acento, números e hífen, e deve ser igual ao nome do arquivo.
+- Tamanho vem de `aspectRatio` (`16:9`, `9:16`, `1:1`) e duração de `durationInSeconds` (o Kling aceita 5 ou 10 s).
+- Vídeos de fundo vêm de `public/assets/<id>.mp4` e são SEMPRE renderizados com `<OffthreadVideo src={staticFile(`assets/${scene.id}.mp4`)} />` (nunca `<Video>` nem `<video>`).
 - Animações só com `useCurrentFrame`, `spring` e `interpolate` (nada de CSS transitions / `setTimeout`).
 - Textos do overlay vêm do JSON da cena, não ficam fixos no componente.
 
 ## Comandos
 | Comando | O que faz |
 |---|---|
-| `npm run dev` | Abre o Remotion Studio (preview no navegador) |
-| `npm run generate:mock` | Gera `public/assets/cena-01.mp4` grátis via FFmpeg local (`ffmpeg-static`) |
-| `npm run generate:ai` | Gera o vídeo real via Fal.ai (gasta créditos, exige `FAL_KEY` no `.env`) |
-| `npm run render` | Renderiza `out/video-final.mp4` |
+| `npm run dev` | Abre o Remotion Studio (preview no navegador) com todas as cenas |
+| `npm run generate:mock -- <id>` | Vídeo de fundo grátis via FFmpeg local (`ffmpeg-static`) |
+| `npm run generate:image -- <id>` | Só a imagem via Fal.ai → `out/<id>-imagem.jpg` (barato) |
+| `npm run generate:ai -- <id>` | Imagem + vídeo via Fal.ai (gasta créditos, exige `FAL_KEY` no `.env`) |
+| `npm run render -- <id>` | Renderiza o vídeo final → `out/<id>.mp4` |
+
+Sem `<id>`, todos usam `cena-01`.
 
 ## Regras
 - Nunca commitar `.env` nem MP4s (já no `.gitignore`).
@@ -49,4 +55,4 @@ Este repositório é **PÚBLICO**. Tudo que for commitado fica visível para qua
 Bloqueia commits com: arquivos `.env*` (exceto `.env.example`), arquivos em `prompts/privados/`, padrões de chave (FAL, ElevenLabs, OpenAI `sk-`, GitHub `ghp_`/`github_pat_`, AWS, Google, chaves privadas PEM) e arquivos > 50MB. O hook não é versionado (fica só em `.git/hooks`): ao clonar o repositório em outra máquina, recriar o hook.
 
 ## Render na nuvem (GitHub Actions)
-Workflow `.github/workflows/render.yml`, disparado manualmente (aba Actions → "Render video" → Run workflow). Com o secret `FAL_KEY` configurado, ele gera o vídeo via IA (gasta créditos). Sem ele, usa o mock grátis. O MP4 final fica disponível para download como Artifact da execução.
+Workflow `.github/workflows/render.yml`, disparado manualmente (aba Actions → "Render video" → Run workflow). Com o secret `FAL_KEY` configurado, ele gera o vídeo via IA (gasta créditos). Sem ele, usa o mock grátis. O campo `scene` escolhe a cena (só cenas de `prompts/`; as privadas não existem no GitHub, e fotos de `entradas/` também não). O conteúdo de `out/` fica disponível para download como Artifact da execução.

@@ -7,11 +7,15 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import scene from "../prompts/cena-01.json";
+import type { Scene } from "./types";
 
-export const MainVideo: React.FC = () => {
+export type MainVideoProps = { scene: Scene };
+
+export const MainVideo: React.FC<MainVideoProps> = ({ scene }) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width, height } = useVideoConfig();
+  const vertical = height > width;
+  const pad = vertical ? 70 : 140;
   const { headline, subheadline, themeColor } = scene.remotionOverlay;
 
   // Entrada do card
@@ -38,7 +42,7 @@ export const MainVideo: React.FC = () => {
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
       <AbsoluteFill style={{ transform: `scale(${bgScale})` }}>
-        <OffthreadVideo src={staticFile("assets/cena-01.mp4")} muted />
+        <OffthreadVideo src={staticFile(`assets/${scene.id}.mp4`)} muted />
       </AbsoluteFill>
 
       <AbsoluteFill
@@ -47,10 +51,10 @@ export const MainVideo: React.FC = () => {
         }}
       />
 
-      <AbsoluteFill style={{ justifyContent: "center", paddingLeft: 140, opacity: exit }}>
+      <AbsoluteFill style={{ justifyContent: vertical ? "flex-end" : "center", padding: pad, paddingBottom: vertical ? 260 : pad, opacity: exit }}>
         <div
           style={{
-            width: 1000,
+            width: Math.min(1000, width - pad * 2),
             padding: "56px 64px",
             borderRadius: 28,
             background: "rgba(15, 23, 42, 0.55)",
